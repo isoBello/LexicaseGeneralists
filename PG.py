@@ -12,39 +12,49 @@ from deap import algorithms, base, tools, creator, gp
 
 toolbox = base.Toolbox()
 history = tools.History()
-df = pd.DataFrame()
 
 hof = None
 log = None
 mstats = None
 
 data = {}
+inserts = {}
 pop = []
 args = 0
 index = 0
+fits = []
 
 
 def datasets():
     iteration = 0
-    indexes = [1, 2, 3, 4, 5, 6]
+    indexes = [2, 3, 4, 5, 6, 7]
 
-    global data, args, index, pop, log, hof, df
+    global data, args, index, pop, log, hof, fits, inserts
     routine()
+
     # The algorithm has the following idea:
     # 1. We get the entire train archive of our dataset to get our final population with best fitness.
     # 2. After that, we do cross-validation with this population to find the best individuals.
     # 3. Then, we generate the LOGS and DF.
     # 4. Finally, we do the things in KNN.
 
-    # while iteration < 5:
-    #     Main.read(indexes[iteration])
-    #     data = Main.get_data()
-    #     args = Main.get_args()
-    #     index = indexes[iteration]
-    #
-    #     iteration += 1
+    while iteration < 5:
+        Main.read(indexes[iteration])
+        data = Main.get_data()
+        args = Main.get_args()
+        index = indexes[iteration]
 
-    df = df.drop_duplicates()
+        for individual in pop:
+            evaluate(individual)
+        iteration += 1
+
+    atual = len(pop)
+    inserts = {'Individual': pop, sys.argv[2]: fits[0:atual], sys.argv[3]: fits[atual:atual*2],
+               sys.argv[4]: fits[atual*2:atual*3],
+               sys.argv[5]: fits[atual*3:atual*4], sys.argv[6]: fits[atual*4:atual*5]}
+
+    df = pd.DataFrame(inserts)
+    # df = df.drop_duplicates()
     Main.statistics(pop, log, hof, df)
 
 
@@ -58,15 +68,25 @@ def analytic_quotient(c, b):
 def eval_symb(individual):
     func = toolbox.compile(expr=individual)
     # Root Mean Square Error - Ela é a raiz do erro médio quadrático da diferença entre a predição e o valor real.
-    global data, index, df
+    global data
     errors = []
     for k, v in data.items():
         errors.append((func(*v) - k) ** 2)
 
-    inserts = {'Individual': str(individual), sys.argv[index]: math.sqrt(np.mean(errors))}
-    df = df.append(inserts, ignore_index=True)
-
     return math.sqrt(np.mean(errors)),
+
+
+def evaluate(individual):
+    func = toolbox.compile(expr=individual)
+    # Root Mean Square Error - Ela é a raiz do erro médio quadrático da diferença entre a predição e o valor real.
+    global data
+    errors = []
+
+    for k, v in data.items():
+        errors.append((func(*v) - k) ** 2)
+    fits.append(math.sqrt(np.mean(errors)))
+    # inserts = {'Individual': str(individual), sys.argv[index]: math.sqrt(np.mean(errors))}
+    # df = df.append(inserts, ignore_index=True)
 
 
 # This is just to set the max number of args in our primitive set. This don't have any influence on fitness.

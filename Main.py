@@ -43,10 +43,10 @@ def get_args():
 def statistics(pop, log, hof, df):
     # Do stuff
 
-    df.to_csv(sys.argv[6], index=True)  # Write the csv file
+    df.to_csv(sys.argv[7], index=True)  # Write the csv file
 
     # Write LOG
-    with open(sys.argv[7], "w") as archive:
+    with open(sys.argv[8], "w") as archive:
         archive.write("Population: " + '\n')
         for p in pop:
             archive.write(str(p) + '\n')
@@ -55,7 +55,7 @@ def statistics(pop, log, hof, df):
         archive.write('\n')
         for h in hof:
             archive.write("Best individual: " + str(h) + '\n')
-            archive.write("Fitness: " + str(h.fitness) + '\n')
+            archive.write("Fitness: " + str(h.fitness).replace(",", "") + '\n')
     archive.close()
 
 
