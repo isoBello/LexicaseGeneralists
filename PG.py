@@ -18,18 +18,25 @@ log = None
 mstats = None
 
 data = {}
-inserts = {}
 pop = []
 args = 0
-index = 0
-fits = []
+
+# Files
+tests = sys.argv[2].split(" ")
+trains = sys.argv[3].split(" ")
+outs = sys.argv[4].split(" ")
+logs_trains = sys.argv[5].split(" ")
+logs_tests = sys.argv[6].split(" ")
+
+# Dataframes
+df_train = pd.DataFrame(columns=['Individual', 'Arquivo', 'Erro'])
+df_test = pd.DataFrame(columns=['Individual', 'Arquivo', 'Erro'])
 
 
 def datasets():
     iteration = 0
-    indexes = [2, 3, 4, 5, 6, 7]
 
-    global data, args, index, pop, log, hof, fits, inserts
+    global data, args, pop, log, hof, fits, df_train, df_test
     routine()
 
     # The algorithm has the following idea:
@@ -39,23 +46,37 @@ def datasets():
     # 4. Finally, we do the things in KNN.
 
     while iteration < 5:
-        Main.read(indexes[iteration])
-        data = Main.get_data()
-        args = Main.get_args()
-        index = indexes[iteration]
+        files = cross_validation(iteration)
+        ofile = outs[iteration]
+        ltrain = logs_trains[iteration]
+        ltest = logs_tests[iteration]
 
-        for individual in pop:
-            evaluate(individual)
+        for file in files:
+            Main.read(file)
+            data = Main.get_data()
+            args = Main.get_args()
+
+            for individual in pop:
+                evaluate(individual, file)
+        Main.statistics(pop, log, hof, df_train, df_test, ofile, ltrain, ltest)
         iteration += 1
 
-    atual = len(pop)
-    inserts = {'Individual': pop, sys.argv[2]: fits[0:atual], sys.argv[3]: fits[atual:atual*2],
-               sys.argv[4]: fits[atual*2:atual*3],
-               sys.argv[5]: fits[atual*3:atual*4], sys.argv[6]: fits[atual*4:atual*5]}
 
-    df = pd.DataFrame(inserts)
-    # df = df.drop_duplicates()
-    Main.statistics(pop, log, hof, df)
+def cross_validation(iteration):
+    global tests, trains
+
+    if iteration == 0:
+        return [tests[0], tests[1], tests[2], tests[3], trains[4]]
+    elif iteration == 1:
+        return [tests[0], tests[1], tests[2], trains[3], tests[4]]
+    elif iteration == 2:
+        return [tests[0], tests[1], trains[2], tests[3], tests[4]]
+    elif iteration == 3:
+        return [tests[0], trains[1], tests[2], tests[3], tests[4]]
+    elif iteration == 4:
+        return [trains[0], tests[1], tests[2], tests[3], tests[4]]
+    else:
+        print("Nothing to be done here...moving on...")
 
 
 # --------------------------------- PG OPERATIONS ---------------------------------
@@ -76,21 +97,22 @@ def eval_symb(individual):
     return math.sqrt(np.mean(errors)),
 
 
-def evaluate(individual):
+def evaluate(individual, file):
     func = toolbox.compile(expr=individual)
-    # Root Mean Square Error - Ela é a raiz do erro médio quadrático da diferença entre a predição e o valor real.
-    global data
-    errors = []
+    global data, df_train, df_test
 
     for k, v in data.items():
-        errors.append((func(*v) - k) ** 2)
-    fits.append(math.sqrt(np.mean(errors)))
-    # inserts = {'Individual': str(individual), sys.argv[index]: math.sqrt(np.mean(errors))}
-    # df = df.append(inserts, ignore_index=True)
+        erro = (func(*v) - k)
+        if "train" in file:
+            row = {'Individual': individual, 'Arquivo': file, 'Erro': erro}
+            df_train = df_train.append(row, ignore_index=True)
+        else:
+            row = {'Individual': individual, 'Arquivo': file, 'Erro': erro}
+            df_test = df_test.append(row, ignore_index=True)
 
 
 # This is just to set the max number of args in our primitive set. This don't have any influence on fitness.
-Main.read(1)
+Main.read(sys.argv[1])
 data = Main.get_data()
 args = Main.get_args()
 
@@ -145,3 +167,12 @@ def routine():
 
     pop, log = algorithms.eaSimple(pop, toolbox, 0.9, 0.1, 10, stats=mstats,
                                    halloffame=hof, verbose=True)
+    # atual = len(pop)
+    # inserts = {'Individual': pop, files[0]: fits[0:atual], files[1]: fits[atual:atual * 2],
+    #            files[2]: fits[atual * 2:atual * 3],
+    #            files[3]: fits[atual * 3:atual * 4], files[4]: fits[atual * 4:atual * 5]}
+    # df = pd.DataFrame(inserts)
+    # Main.statistics(pop, log, hof, df, out, lfile)
+    # inserts = {'Individual': pop, sys.argv[2]: fits[0:atual], sys.argv[3]: fits[atual:atual*2],
+    #            sys.argv[4]: fits[atual*2:atual*3],
+    #            sys.argv[5]: fits[atual*3:atual*4], sys.argv[6]: fits[atual*4:atual*5]}

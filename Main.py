@@ -7,11 +7,11 @@ args = 0
 data = {}
 
 
-def read(index):
+def read(file):
     global args, data
     temp = []
     try:
-        with open(sys.argv[index], "r") as archive:
+        with open(file, "r") as archive:
             lines = archive.readlines()
             for line in lines:
                 values = line.split(",")
@@ -40,19 +40,21 @@ def get_args():
     return args
 
 
-def statistics(pop, log, hof, df):
-    # Do stuff
+def statistics(pop, log, hof, df_train, df_test, ofile, ltrain, ltest):
 
-    df.to_csv(sys.argv[7], index=True)  # Write the csv file
+    # Write LOG for trains and tests
+    df_train.to_csv(ltrain, index=True)  # Write the csv file for train
+    df_test.to_csv(ltest, index=True)  # Write the csv file for tests
 
-    # Write LOG
-    with open(sys.argv[8], "w") as archive:
+    # Write statistics
+    with open(ofile, "w") as archive:
         archive.write("Population: " + '\n')
         for p in pop:
             archive.write(str(p) + '\n')
         archive.write('\n')
         archive.write(str(log) + '\n')
         archive.write('\n')
+        archive.write("Hall of Fame (Best Individuals): " + '\n')
         for h in hof:
             archive.write("Best individual: " + str(h) + '\n')
             archive.write("Fitness: " + str(h.fitness).replace(",", "") + '\n')
