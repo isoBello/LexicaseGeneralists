@@ -1,14 +1,18 @@
 # -*- coding: <UTF-8> -*-
-
+# !/usr/bin/env pypy
 import math
 import sys
+import pyarrow
+import os
 import numpy as np
 import pandas as pd
 import operator
 import random
+import multiprocessing
 import Main
 
 from deap import algorithms, base, tools, creator, gp
+from fastparquet import write
 
 toolbox = base.Toolbox()
 history = tools.History()
@@ -21,62 +25,61 @@ data = {}
 pop = []
 args = 0
 
-# Files
-tests = sys.argv[2].split(" ")
-trains = sys.argv[3].split(" ")
-outs = sys.argv[4].split(" ")
-logs_trains = sys.argv[5].split(" ")
-logs_tests = sys.argv[6].split(" ")
-
-# Dataframes
-df_train = pd.DataFrame(columns=['Individual', 'Arquivo', 'Erro'])
-df_test = pd.DataFrame(columns=['Individual', 'Arquivo', 'Erro'])
+# Folders and Files
+folders = sys.argv[3]
+folds = []
+filename = sys.argv[4]
 
 
 def datasets():
     iteration = 0
 
-    global data, args, pop, log, hof, fits, df_train, df_test
-    routine()
-
+    global folders, folds, filename
     # The algorithm has the following idea:
     # 1. We get the entire train archive of our dataset to get our final population with best fitness.
     # 2. After that, we do cross-validation with this population to find the best individuals.
     # 3. Then, we generate the LOGS and DF.
     # 4. Finally, we do the things in KNN.
 
-    while iteration < 5:
+    while iteration < len(os.listdir(filename)):
         files = cross_validation(iteration)
-        ofile = outs[iteration]
-        ltrain = logs_trains[iteration]
-        ltest = logs_tests[iteration]
 
         for file in files:
-            Main.read(file)
-            data = Main.get_data()
-            args = Main.get_args()
+            filename = filename + file
+            df = pd.read_csv(filename, sep=",")
 
-            for individual in pop:
-                evaluate(individual, file)
-        Main.statistics(pop, log, hof, df_train, df_test, ofile, ltrain, ltest)
-        iteration += 1
+            with open(filename, 'r') as archive:
+                line = archive.readline()
+
+            get_args(len(line) - 1)
+
+            filename = filename.replace(file, "")
+
+            df = df.apply(lambda col: col.astype(float))
+
+            name = folders + "fold" + str(iteration) + "/"
+            folds.append(name)
+
+            path = os.path.join(folders, "fold" + str(iteration) + "/")
+            try:
+                os.mkdir(path)
+            except OSError:
+                pass
+
+            names = name + file.replace("original", "").replace(".dat", ".pq")
+            write(names, df)
+
+        iteration += 10
 
 
 def cross_validation(iteration):
-    global tests, trains
+    files = os.listdir("original")
+    return files[0:iteration] + files[iteration+1:]
 
-    if iteration == 0:
-        return [tests[0], tests[1], tests[2], tests[3], trains[4]]
-    elif iteration == 1:
-        return [tests[0], tests[1], tests[2], trains[3], tests[4]]
-    elif iteration == 2:
-        return [tests[0], tests[1], trains[2], tests[3], tests[4]]
-    elif iteration == 3:
-        return [tests[0], trains[1], tests[2], tests[3], tests[4]]
-    elif iteration == 4:
-        return [trains[0], tests[1], tests[2], tests[3], tests[4]]
-    else:
-        print("Nothing to be done here...moving on...")
+
+def get_args(argument):
+    global args
+    args = argument
 
 
 # --------------------------------- PG OPERATIONS ---------------------------------
@@ -90,31 +93,12 @@ def eval_symb(individual):
     func = toolbox.compile(expr=individual)
     # Root Mean Square Error - Ela é a raiz do erro médio quadrático da diferença entre a predição e o valor real.
     global data
-    errors = []
-    for k, v in data.items():
-        errors.append((func(*v) - k) ** 2)
 
-    return math.sqrt(np.mean(errors)),
+    errors = data.apply(lambda linha: func(*linha[:-1]) - linha[-1], axis=1)
+    result = math.sqrt(errors.pow(2).mean())
 
+    return result,
 
-def evaluate(individual, file):
-    func = toolbox.compile(expr=individual)
-    global data, df_train, df_test
-
-    for k, v in data.items():
-        erro = (func(*v) - k)
-        if "train" in file:
-            row = {'Individual': individual, 'Arquivo': file, 'Erro': erro}
-            df_train = df_train.append(row, ignore_index=True)
-        else:
-            row = {'Individual': individual, 'Arquivo': file, 'Erro': erro}
-            df_test = df_test.append(row, ignore_index=True)
-
-
-# This is just to set the max number of args in our primitive set. This don't have any influence on fitness.
-Main.read(sys.argv[1])
-data = Main.get_data()
-args = Main.get_args()
 
 pset = gp.PrimitiveSet("MAIN", args)
 pset.addPrimitive(operator.add, 2)
@@ -153,7 +137,7 @@ def routine():
     random.seed(318)
 
     global data, pop, log, hof, mstats
-    pop = toolbox.population(n=10)
+    pop = toolbox.population(n=1000)
     hof = tools.HallOfFame(1)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
@@ -165,14 +149,20 @@ def routine():
     mstats.register("min", np.min)
     mstats.register("max", np.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.9, 0.1, 10, stats=mstats,
-                                   halloffame=hof, verbose=True)
-    # atual = len(pop)
-    # inserts = {'Individual': pop, files[0]: fits[0:atual], files[1]: fits[atual:atual * 2],
-    #            files[2]: fits[atual * 2:atual * 3],
-    #            files[3]: fits[atual * 3:atual * 4], files[4]: fits[atual * 4:atual * 5]}
-    # df = pd.DataFrame(inserts)
-    # Main.statistics(pop, log, hof, df, out, lfile)
-    # inserts = {'Individual': pop, sys.argv[2]: fits[0:atual], sys.argv[3]: fits[atual:atual*2],
-    #            sys.argv[4]: fits[atual*2:atual*3],
-    #            sys.argv[5]: fits[atual*3:atual*4], sys.argv[6]: fits[atual*4:atual*5]}
+
+def main():
+    global data, pop, log, hof, folds
+
+    for folder in os.listdir(sys.argv[3]):
+        folds.append(sys.argv[3] + folder + "/")
+
+    for fold in folds:
+        data = pd.read_parquet(fold, engine="pyarrow")
+        pool = multiprocessing.Pool()
+        toolbox.register("map", pool.map)
+        _pop, _log = algorithms.eaSimple(pop, toolbox, 0.9, 0.1, 250, stats=mstats,
+                                         halloffame=hof, verbose=True)
+        pool.close()
+        pop = _pop
+        log = _log
+    Main.statistics(pop, log, hof)

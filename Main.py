@@ -1,56 +1,32 @@
 # -*- coding: <UTF-8> -*-
 # !/usr/bin/env pypy
+
 import sys
 import PG
-
-args = 0
-data = {}
-
-
-def read(file):
-    global args, data
-    temp = []
-    try:
-        with open(file, "r") as archive:
-            lines = archive.readlines()
-            for line in lines:
-                values = line.split(",")
-                for v in values[:-1]:
-                    v = float(v)
-                    temp.append(v)
-                args = len(temp)
-                data[float(values[-1])] = temp
-                temp = []
-        archive.close()
-    except ValueError:
-        print("Nothing to be done here! Moving on...")
+import Predictions
 
 
 def main():
-    PG.datasets()
+    # The first time you run, you need to create the data folders. So, we call PG.datasets
+    # After that, we can do our stuff, so we can comment the function and run again with the other two PG functions
+    # After finished the individuals evolution, we can start the predictions
+    # The first predictions function evaluates individuals for each parquet file, for each line.
+    # Is important to the kmeans algorithm.
+    # The second predictions function find the archives to clustering - this is just made to save time
+    # PG.datasets()
+
+    # PG.routine()
+    # PG.main()
+
+    # Starting post precessing
+    # Predictions.main()
+    # Predictions.archives()
+    Predictions.predictions()
 
 
-def get_data():
-    global data
-    return data
-
-
-def get_args():
-    global args
-    return args
-
-
-def statistics(pop, log, hof, df_train, df_test, ofile, ltrain, ltest):
-
-    # Write LOG for trains and tests
-    df_train.to_csv(ltrain, index=True)  # Write the csv file for train
-    df_test.to_csv(ltest, index=True)  # Write the csv file for tests
-
+def statistics(pop, log, hof):
     # Write statistics
-    with open(ofile, "w") as archive:
-        archive.write("Population: " + '\n')
-        for p in pop:
-            archive.write(str(p) + '\n')
+    with open(sys.argv[1], "w") as archive:
         archive.write('\n')
         archive.write(str(log) + '\n')
         archive.write('\n')
@@ -58,6 +34,12 @@ def statistics(pop, log, hof, df_train, df_test, ofile, ltrain, ltest):
         for h in hof:
             archive.write("Best individual: " + str(h) + '\n')
             archive.write("Fitness: " + str(h.fitness).replace(",", "") + '\n')
+
+    # Write population
+    with open(sys.argv[2], "w") as archive:
+        archive.write("Population: " + '\n')
+        for p in pop:
+            archive.write(str(p) + '\n')
     archive.close()
 
 
